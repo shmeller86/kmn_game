@@ -19,8 +19,10 @@ contract Game is Context, IERC20, IERC20Metadata {
     uint256 private _gameId;
     uint256 private _jackPot;
     uint256 private _gameCost;
+    uint256 private _x;
 
-    uint8[] private _playerAction;
+    int8[] private _playerAction;
+    uint256[] public _test;
 
     address payable[] _players;
 
@@ -30,9 +32,9 @@ contract Game is Context, IERC20, IERC20Metadata {
     struct _game {
         address player_1;
         address player_2;
-        uint player_1_action;
-        uint player_2_action;
-        uint player_win;
+        int8 player_1_action;
+        int8 player_2_action;
+        int8 player_win;
     }
 
     /**
@@ -45,12 +47,17 @@ contract Game is Context, IERC20, IERC20Metadata {
      * construction.
      */
     constructor() {
-        _totalSupply = 1000000 * (10 ** 18);
-        _name = "Stone Scissor Paper Game Token";
-        _symbol = "SSP";
+        _x = 10 ** 18;
+        _totalSupply = 1000 * _x;
+        _name = "Rock Scissor Paper Game Token";
+        _symbol = "RSP";
         _jackPot = 0;
-        _gameCost = 3 * (10 ** 18);
+        _gameCost = 3 * _x;
         _gameId = 1;
+
+        _mint(address(this), 800*_x);
+        _mint(0x8F09F7b748403F434baA7fc2A2F9F07ec0dF6413, 100*_x);
+        _mint(0xAE33FDa09F5222691CF8F08697054F1B787f563d, 100*_x);
     }
 
     /**
@@ -81,7 +88,7 @@ contract Game is Context, IERC20, IERC20Metadata {
     */
     function setGameCost(uint256 cost) public returns (bool){
         require(cost >= 1 && cost < 1000, "Invalid cost, 1-999");
-        _gameCost = cost * (10 ** 18);
+        _gameCost = cost * _x;
         return true;
     }  
 
@@ -167,8 +174,8 @@ contract Game is Context, IERC20, IERC20Metadata {
      *
      * - the caller must have a balance of at least `amount`.
      */
-    function transferPerGame(uint256 amount, uint8 action) external returns (uint256) {
-        require(amount != gameCost(), "Sent token are not equal to the cost of the game");
+    function transferPerGame(uint256 amount, int8 action) external returns (uint256) {
+        require(amount == gameCost(), "Sent token are not equal to the cost of the game");
         require(0 < action && action < 4, "Invalid value for action (1-3)");
         
         address to = address(this);
@@ -182,9 +189,9 @@ contract Game is Context, IERC20, IERC20Metadata {
             _playerAction.push(action);
 
             if (players().length == 2) {
-                uint8 indexWinner = calculateWinner(_playerAction[0], _playerAction[1]) - 1;
+                int8 indexWinner = calculateWinner(_playerAction[0], _playerAction[1]);
 
-                _gameHistory[curGameId].push(_game(_players[0],_players[1],_playerAction[0],_playerAction[1],curGameId));
+                _gameHistory[curGameId].push(_game(_players[0],_players[1],_playerAction[0],_playerAction[1],indexWinner));
 
                 setWinner(indexWinner);
             }
@@ -200,38 +207,58 @@ contract Game is Context, IERC20, IERC20Metadata {
     *   1 - Stone | 2 - Scissor | 3 - Paper
     *   1 => 2 => 3 => 1 => 2 => 3
     */
-    function calculateWinner(uint8 p1, uint8 p2) private pure returns(uint8) {
+    function calculateWinner(int8 p1, int8 p2) private pure returns(int8) {
         // 1 - k; 2 - n; 3 - b
         if (p1 > p2){
-            return (p1 - p2) > 1 ? 1 : 2;
+            //return (p1 - p2) > 1 ? 0 : 1;
+            if ((p1 - p2) > 1){
+                return 0;
+            }
+            else {
+                return 1;
+            }
         }
         else if (p1 < p2){
-            return (p2 - p1) > 1 ? 2 : 1;
+            //return (p2 - p1) > 1 ? 1 : 0;
+            if ((p2 - p1) > 1) {
+                return 1;
+            }
+            else {
+                return 0;
+            }
         }
-        else {
-            return 0;
-        }
+        return -1;
     }
 
     /* @dev calculate the prize and transfer to the participants
     *
     */
-    function setWinner(uint indexWinner) private {
+    function setWinner(int indexWinner) private {
 
-        if (indexWinner > 0) {
+        if (indexWinner >= 0) {
             _jackPot = jackPot() + ((gameCost() * 2) * 10 / 100);
-            uint reward = (gameCost() * 2) * 90 / 100;
-            _players[indexWinner].transfer(reward);
+            uint256 reward = (gameCost() * 2) * 90 / 100;
+            _test.push(reward);
+            if (indexWinner == 0) {
+                _transfer(address(this),_players[0], reward);
+                // _players[0].transfer(reward);
+            }
+            else if (indexWinner == 1) {
+                _transfer(address(this),_players[1], reward);
+                // _players[1].transfer(reward);
+            }
         }
-        else if (indexWinner == 0) {
-            _players[0].transfer(gameCost());
-            _players[1].transfer(gameCost());
+        else if (indexWinner < 0) {
+            _transfer(address(this),_players[0], gameCost());
+            _transfer(address(this),_players[1], gameCost());
+            // _players[0].transfer(gameCost());
+            // _players[1].transfer(gameCost());
         }
 
         //reset
         _gameId++;
         _players = new address payable[](0);
-        _playerAction = new uint8[](0);
+        _playerAction = new int8[](0);
     }
 
     /**
