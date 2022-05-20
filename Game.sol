@@ -13,12 +13,21 @@ contract Game is Context, IERC20, IERC20Metadata {
 
     mapping(address => mapping(address => uint256)) private _allowances;
 
+    mapping(uint256 => _game[]) private _gameHistory;
+
     uint256 private _totalSupply;
+    uint256 private _gameId;
+    uint256 private _jackPot;
+    uint256 private _gameCost;
+
+    uint8[] private _playerAction;
+
+    address payable[] _players;
 
     string private _name;
     string private _symbol;
 
-    struct Play {
+    struct _game {
         address player_1;
         address player_2;
         uint player_1_action;
@@ -36,10 +45,60 @@ contract Game is Context, IERC20, IERC20Metadata {
      * construction.
      */
     constructor() {
-        _totalSupply = 1000000*(10**18);
+        _totalSupply = 1000000 * (10 ** 18);
         _name = "Stone Scissor Paper Game Token";
         _symbol = "SSP";
+        _jackPot = 0;
+        _gameCost = 3 * (10 ** 18);
+        _gameId = 1;
     }
+
+    /**
+    * @dev Returns the game identificator 
+    */
+    function gameId() public view returns (uint256){
+        return _gameId;
+    }
+
+    /**
+    * @dev Returns the total jackpot pot 
+    */
+    function jackPot() public view returns (uint256){
+        return _jackPot;
+    }
+
+    /**
+    * @dev Returns the game cost 
+    */
+    function gameCost() public view returns (uint256){
+        return _gameCost;
+    }    
+
+    /**
+    * @dev Set the game cost 
+    * NOTE: 
+    * Integer must beetwen 1 and 999
+    */
+    function setGameCost(uint256 cost) public returns (bool){
+        require(cost >= 1 && cost < 1000, "Invalid cost, 1-999");
+        _gameCost = cost * (10 ** 18);
+        return true;
+    }  
+
+    /**
+    * @dev Returns current players 
+    */
+    function players() public view returns(address payable[] memory) {
+        return _players;
+    }
+
+    /**
+    * @dev Returns the game history by id
+    */
+    function gameHistory(uint256 id) public view returns (_game[] memory) {
+        return _gameHistory[id];
+    }
+
 
     /**
      * @dev Returns the name of the token.
@@ -99,6 +158,80 @@ contract Game is Context, IERC20, IERC20Metadata {
         address owner = _msgSender();
         _transfer(owner, to, amount);
         return true;
+    }
+
+    /**
+     * @dev See {IERC20-transfer}.
+     *
+     * Requirements:
+     *
+     * - the caller must have a balance of at least `amount`.
+     */
+    function transferPerGame(uint256 amount, uint8 action) external returns (uint256) {
+        require(amount != gameCost(), "Sent token are not equal to the cost of the game");
+        require(0 < action && action < 4, "Invalid value for action (1-3)");
+        
+        address to = address(this);
+        address owner = _msgSender();
+        uint256 curGameId = gameId();
+
+        _transfer(owner, to, amount);
+
+        if (players().length < 2) {  
+            _players.push(payable(owner));
+            _playerAction.push(action);
+
+            if (players().length == 2) {
+                uint8 indexWinner = calculateWinner(_playerAction[0], _playerAction[1]) - 1;
+
+                _gameHistory[curGameId].push(_game(_players[0],_players[1],_playerAction[0],_playerAction[1],curGameId));
+
+                setWinner(indexWinner);
+            }
+        }
+
+        return curGameId;
+    }
+
+    /* @dev calculate the winner
+    * Requirements:
+    *   - Action of the first player 
+    *   - Action of the second player
+    *   1 - Stone | 2 - Scissor | 3 - Paper
+    *   1 => 2 => 3 => 1 => 2 => 3
+    */
+    function calculateWinner(uint8 p1, uint8 p2) private pure returns(uint8) {
+        // 1 - k; 2 - n; 3 - b
+        if (p1 > p2){
+            return (p1 - p2) > 1 ? 1 : 2;
+        }
+        else if (p1 < p2){
+            return (p2 - p1) > 1 ? 2 : 1;
+        }
+        else {
+            return 0;
+        }
+    }
+
+    /* @dev calculate the prize and transfer to the participants
+    *
+    */
+    function setWinner(uint indexWinner) private {
+
+        if (indexWinner > 0) {
+            _jackPot = jackPot() + ((gameCost() * 2) * 10 / 100);
+            uint reward = (gameCost() * 2) * 90 / 100;
+            _players[indexWinner].transfer(reward);
+        }
+        else if (indexWinner == 0) {
+            _players[0].transfer(gameCost());
+            _players[1].transfer(gameCost());
+        }
+
+        //reset
+        _gameId++;
+        _players = new address payable[](0);
+        _playerAction = new uint8[](0);
     }
 
     /**
