@@ -55,9 +55,9 @@ contract Game is Context, IERC20, IERC20Metadata {
         _gameCost = 3 * _x;
         _gameId = 1;
 
-        _mint(address(this), 800*_x);
-        _mint(0x8F09F7b748403F434baA7fc2A2F9F07ec0dF6413, 100*_x);
-        _mint(0xAE33FDa09F5222691CF8F08697054F1B787f563d, 100*_x);
+        // _mint(address(this), 800*_x);
+        // _mint(0x8F09F7b748403F434baA7fc2A2F9F07ec0dF6413, 100*_x);
+        // _mint(0xAE33FDa09F5222691CF8F08697054F1B787f563d, 100*_x);
     }
 
     /**
