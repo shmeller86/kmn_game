@@ -6,6 +6,8 @@ import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contr
 
 contract RSP is ERC20 {
     mapping(uint256 => _game[]) private _gameHistory;
+    mapping(uint256 => _jackpotWinner[]) private _jackPotHistory;
+    uint256 private _jackPotHistoryMapSize;
 
     uint256 private _totalSupply;
     uint256 private _gameId;
@@ -31,18 +33,25 @@ contract RSP is ERC20 {
         int8 player_win;
     }
 
+    struct _jackpotWinner {
+        uint game;
+        address player;
+        uint256 mount;
+    }
+
 
     constructor() ERC20 ("Rock Scissors Paper", "RSP"){
+        _jackPotHistoryMapSize = 0;
         _x = 10 ** 18;
-        uint256 initialSupply = 1000000 * _x;
+        _totalSupply = 1000000 * _x;
         _jackPot = 0;
         _gameCost = 3 * _x;
         _gameId = 1;
         _contractOwner = msg.sender;
 
-        _mint(address(this), initialSupply/100*10);
-        _mint(0xD538C7D64F4AbAd7608B7242Fa574Dc38C1e6c8d, initialSupply/100*90);
-        // _mint(0xAE33FDa09F5222691CF8F08697054F1B787f563d, initialSupply/100*10);
+        _mint(address(this), _totalSupply/100*10);
+        _mint(0xD538C7D64F4AbAd7608B7242Fa574Dc38C1e6c8d, _totalSupply/100*90);
+        _mint(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, _totalSupply/100*10);
     }
 
     /**
@@ -91,6 +100,10 @@ contract RSP is ERC20 {
         return _gameHistory[id];
     }
 
+    function randMod(uint _modulus) public view returns(uint){
+        return uint(keccak256(abi.encodePacked(block.timestamp, msg.sender, _gameId))) % _modulus;
+    }
+
     /**
      * @dev See {IERC20-transfer}.
      *
@@ -101,22 +114,17 @@ contract RSP is ERC20 {
     function transferPerGame(uint256 amount, int8 action) external returns (uint256) {
         require(amount == gameCost(), "Sent token are not equal to the cost of the game");
         require(0 < action && action < 4, "Invalid value for action (1-3)");
-        
+
         address to = address(this);
         address owner = _msgSender();
         uint256 curGameId = gameId();
-
         _transfer(owner, to, amount);
-
         if (players().length < 2) {  
             _players.push(payable(owner));
             _playerAction.push(action);
-
             if (players().length == 2) {
                 int8 indexWinner = calculateWinner(_playerAction[0], _playerAction[1]);
-
                 _gameHistory[curGameId].push(_game(_players[0],_players[1],_playerAction[0],_playerAction[1],indexWinner));
-
                 setWinner(indexWinner);
             }
         }
@@ -164,24 +172,36 @@ contract RSP is ERC20 {
             uint256 reward = (gameCost() * 2) * 90 / 100;
             if (indexWinner == 0) {
                 _transfer(address(this),_players[0], reward);
-                // _players[0].transfer(reward);
             }
             else if (indexWinner == 1) {
                 _transfer(address(this),_players[1], reward);
-                // _players[1].transfer(reward);
             }
         }
         else if (indexWinner < 0) {
             _transfer(address(this),_players[0], gameCost());
             _transfer(address(this),_players[1], gameCost());
-            // _players[0].transfer(gameCost());
-            // _players[1].transfer(gameCost());
         }
 
-        //reset
+        if (roll() == 777){
+            _transfer(address(this),_players[0], jackPot());
+            _jackPotHistory[_jackPotHistoryMapSize + 1].push(_jackpotWinner(_gameId,_players[0],jackPot()));
+            _jackPotHistoryMapSize++;
+            _jackPot = 0;
+        }
+        else if (roll() == 777){
+            _transfer(address(this),_players[1], jackPot());
+            _jackPotHistory[_jackPotHistoryMapSize + 1].push(_jackpotWinner(_gameId,_players[1],jackPot()));
+            _jackPotHistoryMapSize++;
+            _jackPot = 0;
+        } 
+
         _gameId++;
         _players = new address payable[](0);
         _playerAction = new int8[](0);
+    }
+
+    function roll() internal view returns(uint) {
+        return randMod(1000);
     }
 
     modifier onlyContractOwner() {
