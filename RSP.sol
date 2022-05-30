@@ -133,7 +133,7 @@ contract RSP is ERC20 {
     }
 
     /* @dev calculate the winner
-    * Requirements:
+    * Requirements :
     *   - Action of the first player 
     *   - Action of the second player
     *   1 - Stone | 2 - Scissor | 3 - Paper
@@ -194,7 +194,6 @@ contract RSP is ERC20 {
             _jackPotHistoryMapSize++;
             _jackPot = 0;
         } 
-
         _gameId++;
         _players = new address payable[](0);
         _playerAction = new int8[](0);
